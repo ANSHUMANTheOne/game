@@ -15,10 +15,9 @@ html, body {
   color: var(--ink);
 }
 
-#game-canvas { display: block; width: 100vw; height: 100vh; }
+#game-canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 .hidden { display: none !important; }
 
-/* ------------------------------- screens ------------------------------- */
 #menu, .screen {
   position: fixed;
   inset: 0;
@@ -66,7 +65,52 @@ html, body {
 .mode-card .name { font-size: 18px; font-weight: 800; }
 .mode-card .sub { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
 
-/* ----------------------------- dealership ------------------------------ */
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 9px 20px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: rgba(255, 255, 255, 0.65);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.pill:hover { transform: scale(1.05); }
+.pill.secondary { opacity: 0.85; }
+
+.back-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.55);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  cursor: pointer;
+}
+.back-btn:hover { transform: scale(1.05); }
+
+.hint {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b0652f;
+  background: rgba(255, 244, 214, 0.8);
+  border: 2px solid #ffe3a0;
+  padding: 8px 16px;
+  border-radius: 14px;
+}
+
 #vehicle-grid {
   display: flex;
   flex-direction: row;
@@ -127,56 +171,31 @@ html, body {
 
 .deal-price { font-size: 11px; font-weight: 800; color: #4a90d9; }
 
-.back-btn {
-  margin-top: 8px;
-  background: none;
-  border: none;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.back-btn:hover { color: var(--ink); }
-
-.hint {
-  font-size: 13px;
-  font-weight: 700;
-  color: #b06a2c;
-  background: rgba(255, 220, 160, 0.6);
-  padding: 8px 18px;
-  border-radius: 999px;
-}
-
-/* --------------------------------- HUD --------------------------------- */
 .player-hud {
   position: fixed;
   top: 14px;
   left: 14px;
-  z-index: 10;
-  pointer-events: none;
+  z-index: 20;
 }
 .player-hud.right { left: auto; right: 14px; }
 .hud-row { display: flex; gap: 8px; }
-
 .glass {
-  padding: 10px 16px;
-  border-radius: 18px;
-  background: var(--glass);
+  padding: 7px 14px;
+  border-radius: 14px;
   border: 2px solid var(--glass-border);
-  box-shadow: 0 8px 24px rgba(80, 90, 160, 0.12);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  font-size: 16px;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  font-size: 14px;
   font-weight: 800;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-/* ------------------------------- buttons ------------------------------- */
 .exit-btn {
   position: fixed;
-  top: 14px;
-  left: calc(50% + 64px);
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 30;
   padding: 9px 18px;
   border-radius: 999px;
@@ -186,49 +205,30 @@ html, body {
   font-family: inherit;
   font-size: 13px;
   font-weight: 800;
-  color: #3a3a55;
+  color: var(--ink);
   cursor: pointer;
   transition: transform 0.1s ease;
 }
-.exit-btn:hover { transform: scale(1.06); }
+.exit-btn:hover { transform: translateX(-50%) scale(1.06); }
+#btn-exit { left: calc(50% + 64px); }
 
-.pill {
-  padding: 14px 34px;
-  border-radius: 999px;
-  border: 2px solid #fff;
-  background: linear-gradient(135deg, #7ec8f7, #a78bfa);
-  color: #fff;
-  font-size: 17px;
-  font-weight: 800;
-  font-family: inherit;
-  cursor: pointer;
-  box-shadow: 0 10px 24px rgba(120, 110, 220, 0.35);
-  transition: transform 0.12s ease;
-}
-.pill:hover { transform: translateY(-3px); }
-.pill.secondary {
-  background: rgba(255, 255, 255, 0.7);
-  color: var(--ink);
-  box-shadow: 0 8px 20px rgba(80, 90, 160, 0.15);
-}
-
-/* ------------------------------ toast etc ------------------------------ */
 #toast {
   position: fixed;
-  top: 80px;
+  top: 68px;
   left: 50%;
-  transform: translateX(-50%) translateY(-16px);
-  padding: 12px 24px;
+  transform: translateX(-50%) translateY(-12px);
+  padding: 10px 22px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 2px solid #fff;
-  box-shadow: 0 10px 30px rgba(80, 90, 160, 0.2);
-  font-size: 17px;
+  border: 2px solid var(--glass-border);
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  font-size: 14px;
   font-weight: 800;
+  color: var(--ink);
   opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 50;
   pointer-events: none;
-  transition: all 0.3s ease;
-  z-index: 25;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -238,32 +238,29 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 130px;
+  font-size: 110px;
   font-weight: 900;
   color: #fff;
-  text-shadow: 0 8px 30px rgba(100, 110, 180, 0.5);
+  text-shadow: 0 6px 30px rgba(80, 90, 160, 0.5);
+  z-index: 45;
   pointer-events: none;
-  z-index: 20;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.2s ease;
 }
 #countdown.show { opacity: 1; }
 
 #flash {
   position: fixed;
   inset: 0;
+  z-index: 35;
   pointer-events: none;
-  z-index: 15;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.35s ease;
 }
 
-/* ------------------------------- results ------------------------------- */
-#results .big-text { font-size: 64px; font-weight: 900; }
-#results .sub-text { font-size: 16px; font-weight: 700; color: var(--ink-soft); }
-#results .row { display: flex; gap: 12px; margin-top: 10px; }
+.big-text { font-size: 30px; font-weight: 900; color: #4a4a70; }
+.sub-text { font-size: 15px; font-weight: 700; color: var(--ink-soft); }
 
-/* --------------------------- controls hint ----------------------------- */
 #controls-hint {
   position: fixed;
   bottom: 16px;
