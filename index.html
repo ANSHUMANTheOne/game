@@ -1,30 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Low-Poly Drive</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LowPoly Games</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <canvas id="game-canvas"></canvas>
 
-  <canvas id="game-canvas"></canvas>
+    <div id="menu">
+      <h1>LowPoly Games</h1>
+      <p class="tag">pick a gamemode</p>
+      <div id="modes">
+        <button class="mode-card" id="mode-spleef">
+          <span class="big">💥</span>
+          <span class="name">Spleef</span>
+          <span class="sub">2 players · split screen · break the ice</span>
+        </button>
+        <button class="mode-card" id="mode-highway">
+          <span class="big">🛣️</span>
+          <span class="name">Highway Rush</span>
+          <span class="sub">rob the mart · outrun the cops for 30s</span>
+        </button>
+        <button class="mode-card" id="mode-circuit">
+          <span class="big">🏁</span>
+          <span class="name">Circuit A→B</span>
+          <span class="sub">solo best time or 2P split screen</span>
+        </button>
+      </div>
+    </div>
 
-  <div id="speed-card">
-    <div id="speed-value">0</div>
-    <div id="speed-label">km/h</div>
-  </div>
+    <div id="circuit-opts" class="screen hidden">
+      <h2>Circuit A→B</h2>
+      <button class="mode-card" id="circuit-solo">
+        <span class="big">⏱️</span><span class="name">Solo Time Trial</span>
+        <span class="sub">set the best time</span>
+      </button>
+      <button class="mode-card" id="circuit-2p">
+        <span class="big">👥</span><span class="name">2 Players</span>
+        <span class="sub">split screen · first to the flag</span>
+      </button>
+      <button class="back-btn" id="circuit-back">← back</button>
+    </div>
 
-  <div id="button-panel">
-    <button id="btn-reset">Reset Layout</button>
-  </div>
+    <div id="select-screen" class="screen hidden">
+      <h2>LowPoly Motors</h2>
+      <p class="deal-tag">dealership · pick your ride</p>
+      <div id="vehicle-grid"></div>
+      <p id="train-hint" class="hint hidden">🚂 Trains ride the rails — cross the road only at the red &amp; white crossings!</p>
+      <button class="back-btn" id="select-back">← back</button>
+    </div>
 
-  <div id="camera-hint">Drag to look around</div>
+    <div id="hud-p1" class="player-hud hidden">
+      <div class="hud-row">
+        <div class="glass" id="p1-speed">0 km/h</div>
+        <div class="glass" id="p1-info1"></div>
+        <div class="glass" id="p1-info2"></div>
+        <div class="glass" id="p1-info3"></div>
+      </div>
+    </div>
+    <div id="hud-p2" class="player-hud right hidden">
+      <div class="hud-row">
+        <div class="glass" id="p2-speed">0 km/h</div>
+        <div class="glass" id="p2-info1"></div>
+        <div class="glass" id="p2-info2"></div>
+      </div>
+    </div>
 
-  <div id="loading-screen">
-    <div id="loading-text">Loading world...</div>
-  </div>
+    <button id="btn-exit" class="exit-btn hidden">⟵ Menu</button>
+    <button id="btn-garage" class="exit-btn hidden" style="left: calc(50% - 170px);">🚗 Garage</button>
 
-  <script type="module" src="main.js"></script>
-</body>
+    <div id="toast"></div>
+    <div id="countdown"></div>
+    <div id="flash"></div>
+
+    <div id="results" class="screen hidden">
+      <h2 id="results-title">Time!</h2>
+      <p id="results-main" class="big-text"></p>
+      <p id="results-sub" class="sub-text"></p>
+      <div class="row">
+        <button class="pill" id="btn-again">Play again</button>
+        <button class="pill secondary" id="btn-menu">Menu</button>
+      </div>
+    </div>
+
+    <div id="controls-hint">
+      <kbd>W A S D</kbd><span>P1 drive</span>
+      <span class="divider"></span>
+      <kbd>↑ ← ↓ →</kbd><span>P2 drive</span>
+      <span class="divider"></span>
+      <kbd>SHIFT</kbd><span>drift</span>
+      <span class="divider"></span>
+      <kbd>drag</kbd><span>camera</span>
+    </div>
+
+    <script type="module" src="main.js"></script>
+    <script type="module" src="touch.js"></script>
+  </body>
 </html>
