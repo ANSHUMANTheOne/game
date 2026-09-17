@@ -3,52 +3,70 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LowPoly Games</title>
+    <title>lowpoly games</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <canvas id="game-canvas"></canvas>
 
     <div id="menu">
-      <h1>LowPoly Games</h1>
+      <h1>lowpoly games</h1>
       <p class="tag">pick a gamemode</p>
       <div id="modes">
         <button class="mode-card" id="mode-spleef">
           <span class="big">💥</span>
-          <span class="name">Spleef</span>
+          <span class="name">spleef</span>
           <span class="sub">2 players · split screen · break the ice</span>
         </button>
         <button class="mode-card" id="mode-highway">
           <span class="big">🛣️</span>
-          <span class="name">Highway Rush</span>
-          <span class="sub">rob the mart · outrun the cops for 30s</span>
+          <span class="name">highway rush</span>
+          <span class="sub">rob the mart · outrun the cops</span>
         </button>
         <button class="mode-card" id="mode-circuit">
           <span class="big">🏁</span>
-          <span class="name">Circuit A→B</span>
-          <span class="sub">solo best time or 2P split screen</span>
+          <span class="name">circuit a→b</span>
+          <span class="sub">solo best time or 2p split screen</span>
         </button>
       </div>
     </div>
 
+    <div id="highway-opts" class="screen hidden">
+      <h2>highway rush</h2>
+      <button class="mode-card" id="hw-solo">
+        <span class="big">🚗</span><span class="name">solo</span>
+        <span class="sub">rob marts · dodge cops</span>
+      </button>
+      <button class="mode-card" id="hw-2p">
+        <span class="big">👥</span><span class="name">2 players</span>
+        <span class="sub">split screen · most stars wins</span>
+      </button>
+      <button class="back-btn" id="highway-back">← back</button>
+    </div>
+
     <div id="circuit-opts" class="screen hidden">
-      <h2>Circuit A→B</h2>
+      <h2>circuit a→b</h2>
+      <div class="row">
+        <button class="pill" id="track-1">track 1</button>
+        <button class="pill" id="track-2">track 2</button>
+        <button class="pill" id="track-3">track 3</button>
+      </div>
       <button class="mode-card" id="circuit-solo">
-        <span class="big">⏱️</span><span class="name">Solo Time Trial</span>
+        <span class="big">⏱️</span><span class="name">solo time trial</span>
         <span class="sub">set the best time</span>
       </button>
       <button class="mode-card" id="circuit-2p">
-        <span class="big">👥</span><span class="name">2 Players</span>
+        <span class="big">👥</span><span class="name">2 players</span>
         <span class="sub">split screen · first to the flag</span>
       </button>
       <button class="back-btn" id="circuit-back">← back</button>
     </div>
 
     <div id="select-screen" class="screen hidden">
-      <h2>LowPoly Motors</h2>
+      <h2>lowpoly motors</h2>
       <p class="deal-tag">dealership · pick your ride</p>
       <div id="vehicle-grid"></div>
-      <p id="train-hint" class="hint hidden">🚂 Trains ride the rails — cross the road only at the red &amp; white crossings!</p>
+      <p id="train-hint" class="hint hidden">🚂 trains ride the rails, cross the road only at the red &amp; white crossings!</p>
       <button class="back-btn" id="select-back">← back</button>
     </div>
 
@@ -68,29 +86,29 @@
       </div>
     </div>
 
-    <button id="btn-exit" class="exit-btn hidden">⟵ Menu</button>
-    <button id="btn-garage" class="exit-btn hidden" style="left: calc(50% - 170px);">🚗 Garage</button>
+    <button id="btn-exit" class="exit-btn hidden">⟵ menu</button>
+    <button id="btn-garage" class="exit-btn hidden" style="left: calc(50% - 170px);">🚗 garage</button>
 
     <div id="toast"></div>
     <div id="countdown"></div>
     <div id="flash"></div>
 
     <div id="results" class="screen hidden">
-      <h2 id="results-title">Time!</h2>
+      <h2 id="results-title">time!</h2>
       <p id="results-main" class="big-text"></p>
       <p id="results-sub" class="sub-text"></p>
       <div class="row">
-        <button class="pill" id="btn-again">Play again</button>
-        <button class="pill secondary" id="btn-menu">Menu</button>
+        <button class="pill" id="btn-again">play again</button>
+        <button class="pill secondary" id="btn-menu">menu</button>
       </div>
     </div>
 
     <div id="controls-hint">
-      <kbd>W A S D</kbd><span>P1 drive</span>
+      <kbd>w a s d</kbd><span>p1 drive</span>
       <span class="divider"></span>
-      <kbd>↑ ← ↓ →</kbd><span>P2 drive</span>
+      <kbd>↑ ← ↓ →</kbd><span>p2 drive</span>
       <span class="divider"></span>
-      <kbd>SHIFT</kbd><span>drift</span>
+      <kbd>shift</kbd><span>drift</span>
       <span class="divider"></span>
       <kbd>drag</kbd><span>camera</span>
     </div>
