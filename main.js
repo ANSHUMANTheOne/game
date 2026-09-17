@@ -1,9 +1,5 @@
 import * as THREE from "three";
 
-// ===========================================================================
-//  LowPoly Games — Spleef (2P) · Highway Rush · Circuit A→B (solo / 2P)
-// ===========================================================================
-
 const canvas = document.getElementById("game-canvas");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -19,7 +15,7 @@ window.addEventListener("resize", () => {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8d8f0);
-scene.fog = new THREE.Fog(0xa8d8f0, 130, 560);
+scene.fog = new THREE.Fog(0xa8d8f0, 150, 620);
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x8fce7a, 0.7));
@@ -37,7 +33,48 @@ sunLight.shadow.bias = -0.0006;
 scene.add(sunLight);
 scene.add(sunLight.target);
 
-// ------------------------------- helpers ---------------------------------
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  depthWrite: false,
+  fog: false,
+  uniforms: {
+    topColor: { value: new THREE.Color(0x4a90d9) },
+    midColor: { value: new THREE.Color(0xa8d8f0) },
+    botColor: { value: new THREE.Color(0xffe3c2) },
+    sunDir: { value: new THREE.Vector3(0.4, 0.6, 0.7).normalize() },
+  },
+  vertexShader: `
+    varying vec3 vPos;
+    void main() {
+      vPos = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 topColor;
+    uniform vec3 midColor;
+    uniform vec3 botColor;
+    uniform vec3 sunDir;
+    varying vec3 vPos;
+    void main() {
+      vec3 dir = normalize(vPos);
+      float h = dir.y;
+      vec3 col;
+      if (h > 0.12) {
+        col = mix(midColor, topColor, smoothstep(0.12, 0.65, h));
+      } else {
+        col = mix(botColor, midColor, smoothstep(-0.08, 0.12, h));
+      }
+      float sun = max(dot(dir, sunDir), 0.0);
+      col += vec3(1.0, 0.9, 0.7) * pow(sun, 60.0) * 0.9;
+      col += vec3(1.0, 0.85, 0.6) * pow(sun, 6.0) * 0.18;
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+});
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 14), skyMat);
+scene.add(skyDome);
+
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, ...opts });
 const glassMat = mat(0x9adcf0, { roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.92 });
@@ -49,9 +86,6 @@ const steelMat = mat(0x9aa0ad, { metalness: 0.6, roughness: 0.35 });
 const shortestAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = THREE.MathUtils.clamp;
 
-// ============================================================================
-//  VEHICLES
-// ============================================================================
 const VEHICLES = {
   sedan:     { emoji: "🚗", color: 0x7ec8f7, len: 4.2, wid: 2.0, body: 0.72, cabin: 0.6,  max: 27, acc: 15, wheel: 0.36 },
   sports:    { emoji: "🏎️", color: 0xff8fa3, len: 4.1, wid: 2.0, body: 0.55, cabin: 0.48, max: 33, acc: 21, wheel: 0.35 },
@@ -211,9 +245,6 @@ function buildVehicle(type) {
   return g;
 }
 
-// ============================================================================
-//  PARTICLES — sparks, smoke, skid marks
-// ============================================================================
 const sparks = [];
 for (let i = 0; i < 90; i++) {
   const s = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.35), new THREE.MeshBasicMaterial({ color: i % 3 ? 0xffb347 : 0xff5a4e }));
@@ -298,9 +329,6 @@ function updateSkids(dt) {
   }
 }
 
-// ============================================================================
-//  PLAYERS + CAMERA + CAR PHYSICS
-// ============================================================================
 const CONTROLS_P1 = { f: "KeyW", b: "KeyS", l: "KeyA", r: "KeyD", drift: "ShiftLeft" };
 const CONTROLS_P2 = { f: "ArrowUp", b: "ArrowDown", l: "ArrowLeft", r: "ArrowRight", drift: "ShiftRight" };
 
@@ -333,21 +361,23 @@ function updateCarPhysics(p, dt, opts = {}) {
     if (keys[c.f]) p.speed += cfg.acc * dt;
     else if (keys[c.b]) p.speed -= cfg.acc * 1.4 * dt;
     else p.speed *= 1 - 0.5 * dt;
-    p.speed = clamp(p.speed, -8, cfg.max);
+    let topSpeed = cfg.max;
+    if (p.type === "train") topSpeed = p.railLocked ? 36 : 16;
+    p.speed = clamp(p.speed, -8, topSpeed);
 
     if (u.grassSlow) {
       const ax = Math.abs(p.obj.position.x);
-      if (ax > 11.2) p.speed *= 1 - 1.3 * dt;
+      if (ax > 14 && p.speed > 5) p.speed *= 1 - 0.45 * dt;
     }
 
     const steer = (keys[c.l] ? 1 : 0) - (keys[c.r] ? 1 : 0);
     const speedFrac = Math.min(1, Math.abs(p.speed) / 10);
-    const highSpeedDamp = 1 - 0.35 * speedFrac;
+    const highSpeedDamp = 1 - 0.25 * speedFrac;
     const driftBonus = keys[c.drift] ? 1.6 : 1;
-    p.heading += steer * 1.9 * driftBonus * highSpeedDamp * speedFrac * dt * Math.sign(p.speed || 1);
+    p.heading += steer * 1.6 * driftBonus * highSpeedDamp * speedFrac * dt * Math.sign(p.speed || 1);
 
     p.drifting = keys[c.drift] && Math.abs(p.speed) > 8;
-    const grip = p.drifting ? 1.6 : u.onIce ? 2.4 : 9.5;
+    const grip = p.drifting ? 1.6 : u.onIce ? 2.4 : 11;
     p.velHeading += shortestAngle(p.heading - p.velHeading) * Math.min(1, grip * dt);
     if (p.drifting) p.speed *= 1 - 0.15 * dt;
 
@@ -425,13 +455,14 @@ function updateCamera(p, dt) {
   );
   p.camera.position.lerp(target, 1 - Math.pow(0.0001, dt));
   p.camera.lookAt(p.obj.position.x, p.obj.position.y + 1.5, p.obj.position.z);
+  if (shake > 0) {
+    p.camera.position.x += (Math.random() - 0.5) * shake * 0.6;
+    p.camera.position.y += (Math.random() - 0.5) * shake * 0.6;
+  }
 }
 
-// ============================================================================
-//  MODE: HIGHWAY RUSH
-// ============================================================================
-const LANE_RIGHT = [3.3, 6, 8.7];
-const LANE_LEFT = [-3.3, -6, -8.7];
+const LANE_RIGHT = [4, 7, 10];
+const LANE_LEFT = [-4, -7, -10];
 const RAIL_X = 14.5;
 const CHUNK_LEN = 60;
 const CHUNK_COUNT = 14;
@@ -447,7 +478,6 @@ let G_mountains = null;
 
 function buildHighway() {
   const asphaltMat = mat(0x4a4a52, { roughness: 0.95 });
-  const fenceMat = steelMat;
 
   const paintLine = (g, x, z, w, l, color) => {
     const line = new THREE.Mesh(new THREE.PlaneGeometry(w, l), mat(color));
@@ -462,20 +492,20 @@ function buildHighway() {
     const zMid = z0 + CHUNK_LEN / 2;
 
     for (const side of [1, -1]) {
-      const road = new THREE.Mesh(new THREE.PlaneGeometry(10, CHUNK_LEN), asphaltMat);
+      const road = new THREE.Mesh(new THREE.PlaneGeometry(13, CHUNK_LEN), asphaltMat);
       road.rotation.x = -Math.PI / 2;
-      road.position.set(side * 6, 0.01, zMid);
+      road.position.set(side * 7, 0.01, zMid);
       road.receiveShadow = true;
       g.add(road);
     }
     paintLine(g, -0.28, zMid, 0.16, CHUNK_LEN, 0xffd166);
     paintLine(g, 0.28, zMid, 0.16, CHUNK_LEN, 0xffd166);
     for (const side of [1, -1]) {
-      paintLine(g, side * 1.35, zMid, 0.14, CHUNK_LEN, 0xf8f9fa);
-      paintLine(g, side * 10.7, zMid, 0.14, CHUNK_LEN, 0xf8f9fa);
+      paintLine(g, side * 1.6, zMid, 0.14, CHUNK_LEN, 0xf8f9fa);
+      paintLine(g, side * 13.6, zMid, 0.14, CHUNK_LEN, 0xf8f9fa);
       for (let i = 0; i < 6; i++) {
-        paintLine(g, side * 4.65, z0 + i * 10 + 2.5, 0.12, 4, 0xf8f9fa);
-        paintLine(g, side * 7.35, z0 + i * 10 + 2.5, 0.12, 4, 0xf8f9fa);
+        paintLine(g, side * 5.5, z0 + i * 10 + 2.5, 0.12, 4, 0xf8f9fa);
+        paintLine(g, side * 8.5, z0 + i * 10 + 2.5, 0.12, 4, 0xf8f9fa);
       }
     }
 
@@ -506,12 +536,12 @@ function buildHighway() {
       for (const side of [-1, 1]) {
         const fx = RAIL_X + side * 1.5;
         for (const hy of [0.35, 0.7]) {
-          const bar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, CHUNK_LEN), fenceMat);
+          const bar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, CHUNK_LEN), steelMat);
           bar.position.set(fx, hy, zMid);
           g.add(bar);
         }
         for (let i = 0; i < CHUNK_LEN / 3; i++) {
-          const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.08), fenceMat);
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.08), steelMat);
           post.position.set(fx, 0.42, z0 + i * 3 + 0.5);
           g.add(post);
         }
@@ -520,7 +550,7 @@ function buildHighway() {
 
     for (let i = 0; i < 6; i++) {
       const side = Math.random() > 0.5 ? 1 : -1;
-      const x = side * (22 + Math.random() * 55);
+      const x = side * (24 + Math.random() * 55);
       const z = z0 + Math.random() * CHUNK_LEN;
       const roll = Math.random();
       let obj;
@@ -559,7 +589,7 @@ function buildHighway() {
   const mountains = new THREE.Group();
   for (let i = 0; i < 16; i++) {
     const angle = (i / 16) * Math.PI * 2;
-    const dist = 400 + Math.random() * 130;
+    const dist = 420 + Math.random() * 130;
     const h = 45 + Math.random() * 75;
     const m = new THREE.Mesh(
       new THREE.ConeGeometry(60 + Math.random() * 50, h, 5),
@@ -612,7 +642,7 @@ function spawnWalmart() {
   star.position.y = 7;
   g.add(store, roof, sign, star);
   g.userData.star = star;
-  g.position.set(Math.random() > 0.5 ? 17 : -17, 0, G.players[0].obj.position.z + 320);
+  g.position.set(Math.random() > 0.5 ? 19 : -19, 0, G.players[0].obj.position.z + 320);
   scene.add(g);
   H.walmart = g;
 }
@@ -624,19 +654,29 @@ function removeWalmart() {
 }
 function robWalmart() {
   H.stars++;
-  showToast("🛒 Robbed the mart! ⭐ +1 — cops incoming for 30s!");
+  showToast("🛒 robbed the mart! ⭐ +1, cops coming for 30s");
   flash("rgba(255, 215, 100, 0.4)");
   removeWalmart();
   spawnCop();
   H.copTimer = 30;
 }
+function nearestPlayer(x, z) {
+  let best = G.players[0];
+  let bestD = Infinity;
+  for (const p of G.players) {
+    const d = (p.obj.position.x - x) ** 2 + (p.obj.position.z - z) ** 2;
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
 function spawnCop() {
   if (H.cops.length >= 5) return;
-  const cop = makePlayer("police", G.players[0].obj.position.x + 6, G.players[0].obj.position.z - 25, {});
+  const target = G.players[G.players.length - 1];
+  const cop = makePlayer("police", target.obj.position.x + 6, target.obj.position.z - 25, {});
   cop.isCop = true;
   cop.copSpeed = 0;
   H.cops.push(cop);
-  showToast("🚨 Police chase! Survive 30 seconds!");
+  showToast("🚨 police chase! survive 30 seconds");
 }
 function updateCops(dt) {
   if (H.cops.length) {
@@ -644,15 +684,15 @@ function updateCops(dt) {
     if (H.copTimer <= 0) {
       for (const c of H.cops) scene.remove(c.obj);
       H.cops.length = 0;
-      showToast("😎 You lost the cops! Kept your ⭐");
+      showToast("😎 you lost the cops! kept your ⭐");
       return;
     }
   }
-  const p = G.players[0];
   for (const cop of H.cops) {
+    const target = nearestPlayer(cop.obj.position.x, cop.obj.position.z);
     const o = cop.obj;
-    const dx = p.obj.position.x - o.position.x;
-    const dz = p.obj.position.z - o.position.z;
+    const dx = target.obj.position.x - o.position.x;
+    const dz = target.obj.position.z - o.position.z;
     o.rotation.y += shortestAngle(Math.atan2(dx, dz) - o.rotation.y) * Math.min(1, 3 * dt);
     cop.copSpeed = Math.min(cop.copSpeed + 10 * dt, 25);
     o.position.x += Math.sin(o.rotation.y) * cop.copSpeed * dt;
@@ -662,12 +702,12 @@ function updateCops(dt) {
     const t = performance.now() / 150;
     o.userData.lightBar?.forEach((l, li) => (l.material.emissiveIntensity = Math.floor(t + li) % 2 ? 1.6 : 0.15));
 
-    if (Math.hypot(dx, dz) < 3.4 && p.stun <= 0) {
+    if (Math.hypot(dx, dz) < 3.4 && target.stun <= 0) {
       const lost = Math.ceil(H.stars / 2);
       H.stars -= lost;
-      p.stun = 1.5;
-      p.speed = 0;
-      showToast(`🚨 BUSTED! Lost ${lost} ⭐`);
+      target.stun = 1.5;
+      target.speed = 0;
+      showToast(`🚨 busted! lost ${lost} ⭐`);
       flash("rgba(80, 120, 255, 0.45)");
       for (const c of H.cops) scene.remove(c.obj);
       H.cops.length = 0;
@@ -690,7 +730,6 @@ function spawnTrafficCar(car, aheadOfZ) {
   car.rotation.set(0, dir === 1 ? 0 : Math.PI, 0);
 }
 function updateTraffic(dt) {
-  const p = G.players[0];
   for (const car of traffic) {
     const u = car.userData;
     if (u.knocked > 0) {
@@ -703,7 +742,8 @@ function updateTraffic(dt) {
     car.position.x += (u.laneX - car.position.x) * Math.min(1, 1.5 * dt);
     for (const w of car.userData.wheels) w.children[0].rotation.x += u.cruise * dt * 2;
 
-    if (p.stun <= 0 && !p.finished) {
+    for (const p of G.players) {
+      if (p.stun > 0 || p.finished) continue;
       const dx = p.obj.position.x - car.position.x;
       const dz = p.obj.position.z - car.position.z;
       if (dx * dx + dz * dz < 7.5) {
@@ -720,8 +760,8 @@ function updateTraffic(dt) {
         shake = Math.min(1, 0.3 + impact * 0.02);
       }
     }
-    if (car.position.z < p.obj.position.z - 150 || car.position.z > p.obj.position.z + 560)
-      spawnTrafficCar(car, p.obj.position.z + 100);
+    if (car.position.z < G.players[0].obj.position.z - 150 || car.position.z > G.players[0].obj.position.z + 560)
+      spawnTrafficCar(car, G.players[0].obj.position.z + 100);
   }
 }
 
@@ -753,11 +793,9 @@ function switchVehicle(type) {
   const fresh = makePlayer(type, pos.x, pos.z, CONTROLS_P1);
   if (type === "train") { fresh.heading = 0; fresh.velHeading = 0; fresh.railLocked = true; }
   G.players[0] = fresh;
-  showToast((VEHICLES[type]?.emoji ?? "🚗") + " New ride delivered!");
+  showToast((VEHICLES[type]?.emoji ?? "🚗") + " new ride delivered!");
 }
-// ============================================================================
-//  MODE: SPLEEF — 2P split screen on an ice platform
-// ============================================================================
+
 const S = { tiles: [], scores: [0, 0], resetting: false, target: 3, players: [] };
 function buildSpleef() {
   const water = new THREE.Mesh(
@@ -769,7 +807,7 @@ function buildSpleef() {
   scene.add(water);
 
   const TILE = 3;
-  const N = 21; // 21×21 arena
+  const N = 27;
   const iceMat = mat(0xbfe8ff, { roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.9 });
   for (let i = 0; i < N; i++)
     for (let j = 0; j < N; j++) {
@@ -791,7 +829,7 @@ function resetSpleef() {
     t.mesh.material.color.set(0xbfe8ff);
   }
   S.players.forEach((p, i) => {
-    p.obj.position.set(i === 0 ? -12 : 12, 0, 0);
+    p.obj.position.set(i === 0 ? -24 : 24, 0, 0);
     p.heading = i === 0 ? Math.PI / 2 : -Math.PI / 2;
     p.velHeading = p.heading;
     p.speed = 0;
@@ -815,7 +853,6 @@ function updateSpleef(dt) {
   }
   S.players.forEach((p, idx) => {
     if (p.vy === 0) {
-      // Only tiles directly under a fast-moving car crack — slow driving is safe
       if (Math.abs(p.speed) > 4) {
         for (const t of S.tiles) {
           if (t.falling || t.crackTimer > 0) continue;
@@ -834,7 +871,7 @@ function updateSpleef(dt) {
         const dz = t.mesh.position.z - p.obj.position.z;
         if (dx * dx + dz * dz < 4.5) { supported = true; break; }
       }
-      if (!supported) { p.vy = 0.01; showToast(`💦 P${idx + 1} fell in!`); }
+      if (!supported) { p.vy = 0.01; showToast(`💦 p${idx + 1} fell in!`); }
     } else {
       p.vy -= 20 * dt;
       p.obj.position.y += p.vy * dt;
@@ -844,9 +881,9 @@ function updateSpleef(dt) {
         S.scores[1 - idx]++;
         updateSpleefHUD();
         if (S.scores[1 - idx] >= S.target) {
-          endGame(`Player ${1 - idx + 1} wins!`, `${S.scores[0]} — ${S.scores[1]}`);
+          endGame(`player ${1 - idx + 1} wins!`, `${S.scores[0]} - ${S.scores[1]}`);
         } else {
-          showToast(`🏆 Point P${1 - idx + 1}! (${S.scores[0]}–${S.scores[1]})`);
+          showToast(`🏆 point p${1 - idx + 1}! (${S.scores[0]}-${S.scores[1]})`);
           setTimeout(() => S.resetting && resetSpleef(), 1800);
         }
       }
@@ -859,9 +896,6 @@ function updateSpleefHUD() {
   document.getElementById("p2-info2").textContent = `first to ${S.target}`;
 }
 
-// ============================================================================
-//  MODE: CIRCUIT A→B
-// ============================================================================
 const C = { path: [], checkpoints: [], cpSpacing: 40, total: 0 };
 function mulberry32(a) {
   return function () {
@@ -871,8 +905,9 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+let trackSeed = 20260916;
 function buildCircuit() {
-  const rnd = mulberry32(20260916);
+  const rnd = mulberry32(trackSeed);
   const pts = [];
   let x = 0, z = 0, h = 0;
   const push = () => pts.push({ x, z, h });
@@ -988,28 +1023,25 @@ function updateCircuitProgress(p, dt) {
   if (best >= C.path.length - 4) {
     p.finished = true;
     p.finishTime = G.modeTime;
-    const key = "lp_circuit_best";
+    const key = "lp_circuit_best_" + trackSeed;
     if (!G.split) {
       const prevBest = parseFloat(localStorage.getItem(key) || "0");
       let sub = `your time: ${p.finishTime.toFixed(2)}s`;
       if (!prevBest || p.finishTime < prevBest) {
         localStorage.setItem(key, p.finishTime.toFixed(2));
-        sub += " · 🏆 NEW BEST!";
+        sub += " · 🏆 new best!";
       } else sub += ` · best: ${prevBest.toFixed(2)}s`;
-      endGame("🏁 Finished!", sub);
+      endGame("🏁 finished!", sub);
     } else {
       const other = G.players[1 - G.players.indexOf(p)];
       if (other && other.finished) {
-        const winner = a.finishTime <= b.finishTime ? 1 : 2;
-        endGame(`🏁 Player ${winner} wins!`, `${G.players[0].finishTime.toFixed(2)}s vs ${G.players[1].finishTime.toFixed(2)}s`);
+        const winner = p.finishTime <= other.finishTime ? 1 : 2;
+        endGame(`🏁 player ${winner} wins!`, `${G.players[0].finishTime.toFixed(2)}s vs ${G.players[1].finishTime.toFixed(2)}s`);
       }
     }
   }
 }
 
-// ============================================================================
-//  GAME ORCHESTRATION
-// ============================================================================
 const G = { mode: null, players: [], split: false, started: false, over: false, modeTime: 0 };
 window.LP = { keys, G };
 let shake = 0;
@@ -1029,7 +1061,7 @@ function flash(color) {
   setTimeout(() => ($("flash").style.opacity = "0"), 200);
 }
 function runCountdown(cb) {
-  const steps = ["3", "2", "1", "GO!"];
+  const steps = ["3", "2", "1", "go!"];
   let i = 0;
   $("countdown").classList.add("show");
   const tick = () => {
@@ -1058,17 +1090,36 @@ $("btn-menu").onclick = () => location.reload();
 $("btn-exit").onclick = () => location.reload();
 
 $("mode-spleef").onclick = () => startSpleef();
-$("mode-highway").onclick = () => { $("menu").classList.add("hidden"); $("select-screen").classList.remove("hidden"); };
+$("mode-highway").onclick = () => {
+  $("menu").classList.add("hidden");
+  $("highway-opts").classList.remove("hidden");
+};
 $("mode-circuit").onclick = () => { $("menu").classList.add("hidden"); $("circuit-opts").classList.remove("hidden"); };
-$("circuit-back").onclick = $("select-back").onclick = () => {
+$("circuit-back").onclick = () => {
   $("circuit-opts").classList.add("hidden");
+  $("menu").classList.remove("hidden");
+};
+$("highway-back").onclick = () => {
+  $("highway-opts").classList.add("hidden");
+  $("menu").classList.remove("hidden");
+};
+$("select-back").onclick = () => {
   $("select-screen").classList.add("hidden");
   $("menu").classList.remove("hidden");
 };
-$("circuit-solo").onclick = () => startCircuit(false);
-$("circuit-2p").onclick = () => startCircuit(true);
+$("hw-solo").onclick = () => {
+  G.mode = "highway";
+  nextMode = "highway";
+  $("highway-opts").classList.add("hidden");
+  $("select-screen").classList.remove("hidden");
+};
+$("hw-2p").onclick = () => {
+  G.mode = "highway";
+  nextMode = "highway-2p";
+  $("highway-opts").classList.add("hidden");
+  $("select-screen").classList.remove("hidden");
+};
 
-// dealership grid
 const RATINGS = {
   sedan: { grip: 7 }, sports: { grip: 9 }, taxi: { grip: 7 }, van: { grip: 6 },
   pickup: { grip: 6 }, truck: { grip: 4 }, ambulance: { grip: 6 }, police: { grip: 8 },
@@ -1077,26 +1128,34 @@ const RATINGS = {
 function statBar(label, cls, frac, valText) {
   return `<div class="stat-row"><span class="lbl">${label}</span><div class="stat-bar ${cls}"><div style="width:${Math.round(frac * 100)}%"></div></div><span class="val">${valText}</span></div>`;
 }
+let nextMode = "highway";
 for (const [name, v] of Object.entries(VEHICLES)) {
   const grip = RATINGS[name]?.grip ?? 6;
-  const zeroToHundred = v.acc > 0 ? (v.max / 3.6 / v.acc).toFixed(1) : "—";
+  const zeroToHundred = v.acc > 0 ? (v.max / 3.6 / v.acc).toFixed(1) : "-";
   const btn = document.createElement("button");
   btn.className = "mode-card deal-card";
   btn.innerHTML = `
     <div class="top"><span class="big">${v.emoji}</span><span class="name">${name.toUpperCase()}</span></div>
-    ${statBar("SPD", "speed", v.max / 40, Math.round(v.max * 3.6) + " km/h")}
-    ${statBar("ACC", "acc", Math.min(1, v.acc / 26), "0-100 " + zeroToHundred + "s")}
-    ${statBar("GRP", "grip", grip / 10, grip + "/10")}
-    ${statBar("SIZ", "size", Math.min(1, v.len / 8), v.len.toFixed(1) + "m")}
+    ${statBar("spd", "speed", v.max / 40, Math.round(v.max * 3.6) + " km/h")}
+    ${statBar("acc", "acc", Math.min(1, v.acc / 26), "0-100 " + zeroToHundred + "s")}
+    ${statBar("grp", "grip", grip / 10, grip + "/10")}
+    ${statBar("siz", "size", Math.min(1, v.len / 8), v.len.toFixed(1) + "m")}
     <span class="deal-price">${name === "train" ? "🚂 rails only" : "test drive →"}</span>
   `;
   btn.onclick = () => {
     $("select-screen").classList.add("hidden");
-    if (G.mode === "highway" && G.players.length) switchVehicle(name);
+    if (nextMode === "highway-2p") startHighway2P(name);
+    else if (nextMode === "circuit-solo") startCircuit(false, name);
+    else if (nextMode === "circuit-2p") startCircuit(true, name);
+    else if (G.mode === "highway" && G.players.length) switchVehicle(name);
     else startHighway(name);
   };
   $("vehicle-grid").appendChild(btn);
 }
+
+$("track-1").onclick = () => { trackSeed = 20260916; $("track-1").style.background = "#7ec8f7"; };
+$("track-2").onclick = () => { trackSeed = 777; $("track-2").style.background = "#7ec8f7"; };
+$("track-3").onclick = () => { trackSeed = 424242; $("track-3").style.background = "#7ec8f7"; };
 
 function showHUDs(n) {
   $("hud-p1").classList.remove("hidden");
@@ -1131,7 +1190,31 @@ function startHighway(type) {
     traffic.push(car);
     spawnTrafficCar(car, i * 35);
   }
-  runCountdown(() => showToast(type === "train" ? "🚂 Choo choo! Cross only at the crossings!" : "Rob the mart for ⭐!"));
+  runCountdown(() => showToast(type === "train" ? "🚂 choo choo! cross only at the crossings" : "rob the mart for ⭐!"));
+}
+
+function startHighway2P(type) {
+  $("select-screen").classList.add("hidden");
+  G.mode = "highway";
+  G.split = true;
+  buildHighway();
+  const p1 = makePlayer(type, type === "train" ? RAIL_X : LANE_RIGHT[0], 0, CONTROLS_P1);
+  const p2 = makePlayer("taxi", LANE_LEFT[0], 6, CONTROLS_P2);
+  p2.heading = Math.PI;
+  p2.velHeading = Math.PI;
+  if (type === "train") { p1.heading = 0; p1.velHeading = 0; p1.railLocked = true; }
+  G.players.push(p1, p2);
+  showHUDs(2);
+  resizeCameras();
+  $("btn-garage").classList.add("hidden");
+
+  for (let i = 0; i < 18; i++) {
+    const car = buildVehicle(TRAFFIC_TYPES[i % TRAFFIC_TYPES.length]);
+    scene.add(car);
+    traffic.push(car);
+    spawnTrafficCar(car, i * 35);
+  }
+  runCountdown(() => showToast("🛒 whoever robs more marts in 5 min wins!"));
 }
 
 function startSpleef() {
@@ -1139,8 +1222,8 @@ function startSpleef() {
   G.mode = "spleef";
   G.split = true;
   buildSpleef();
-  const p1 = makePlayer("sedan", -12, 0, CONTROLS_P1);
-  const p2 = makePlayer("sports", 12, 0, CONTROLS_P2);
+  const p1 = makePlayer("sedan", -24, 0, CONTROLS_P1);
+  const p2 = makePlayer("sports", 24, 0, CONTROLS_P2);
   p1.heading = p1.velHeading = Math.PI / 2;
   p2.heading = p2.velHeading = -Math.PI / 2;
   G.players.push(p1, p2);
@@ -1149,17 +1232,17 @@ function startSpleef() {
   resizeCameras();
   $("btn-garage").classList.add("hidden");
   updateSpleefHUD();
-  runCountdown(() => showToast("💥 Speed over ice to crack it — slow down to stay safe!"));
+  runCountdown(() => showToast("💥 speed over ice to crack it, slow down to stay safe"));
 }
 
-function startCircuit(split) {
-  $("circuit-opts").classList.add("hidden");
+function startCircuit(split, type = "sports") {
+  $("select-screen").classList.add("hidden");
   G.mode = "circuit";
   G.split = split;
   buildCircuit();
   const p0 = C.path[0];
   const rightV = new THREE.Vector3(Math.cos(p0.h), 0, -Math.sin(p0.h));
-  const p1 = makePlayer("sports", p0.x + rightV.x * 3, p0.z + rightV.z * 3, CONTROLS_P1);
+  const p1 = makePlayer(type, p0.x + rightV.x * 3, p0.z + rightV.z * 3, CONTROLS_P1);
   G.players.push(p1);
   if (split) {
     const p2 = makePlayer("sedan", p0.x - rightV.x * 3, p0.z - rightV.z * 3, CONTROLS_P2);
@@ -1168,7 +1251,7 @@ function startCircuit(split) {
   showHUDs(G.players.length);
   resizeCameras();
   $("btn-garage").classList.add("hidden");
-  runCountdown(() => showToast("🏁 Race A → B! Blue lines are checkpoints."));
+  runCountdown(() => showToast("🏁 race to the finish! blue lines are checkpoints"));
 }
 
 function updateHUD() {
@@ -1179,6 +1262,11 @@ function updateHUD() {
     $("p1-info2").textContent = "🚓 " + H.cops.length + (H.cops.length ? ` ${Math.ceil(H.copTimer)}s` : "");
     const t = Math.max(0, Math.ceil(H.timeLeft));
     $("p1-info3").textContent = `⏱ ${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+    if (p2) {
+      $("p2-speed").textContent = Math.round(Math.abs(p2.speed) * 3.6) + " km/h";
+      $("p2-info1").textContent = "⭐ " + H.stars;
+      $("p2-info2").textContent = "⏱ " + Math.max(0, Math.ceil(H.timeLeft)) + "s";
+    }
   } else if (G.mode === "circuit") {
     $("p1-info1").textContent = `⏱ ${G.modeTime.toFixed(1)}s`;
     const nextCp = C.checkpoints.find((c) => c > p1.prog);
@@ -1219,7 +1307,7 @@ function animate() {
       G.modeTime += dt;
       if (G.mode === "highway") {
         H.timeLeft -= dt;
-        if (H.timeLeft <= 0) endGame("⏰ Time!", `you collected ⭐ ${H.stars}`);
+        if (H.timeLeft <= 0) endGame("⏰ time!", `you collected ⭐ ${H.stars}`);
       }
     }
 
@@ -1228,13 +1316,22 @@ function animate() {
         case "highway":
           updateCarPhysics(p, dt, { grassSlow: true });
           if (p.type === "train") updateTrain(p, dt);
+          if (!G.split) {
+            if (p.maxZ === undefined) p.maxZ = p.obj.position.z;
+            if (p.obj.position.z < p.maxZ - 4) {
+              p.obj.position.z = p.maxZ - 4;
+              p.speed = Math.max(p.speed, 0);
+              if (Math.random() < 0.02) showToast("wrong way! the highway only goes forward");
+            }
+            p.maxZ = Math.max(p.maxZ, p.obj.position.z);
+          }
           p.obj.position.x = clamp(p.obj.position.x, -60, RAIL_X + 8);
           break;
         case "spleef":
           updateCarPhysics(p, dt, { onIce: true });
           break;
         case "circuit":
-          updateCarPhysics(p, dt, { grassSlow: true });
+          updateCarPhysics(p, dt, {});
           updateCircuitProgress(p, dt);
           break;
       }
@@ -1247,24 +1344,27 @@ function animate() {
       H.walmartTimer -= dt;
       if (H.walmartTimer <= 0 && !H.walmart) {
         spawnWalmart();
-        showToast("🛒 A Walmart appeared ahead!");
+        showToast("🛒 a walmart appeared ahead!");
       }
       if (H.walmart) {
-        const p = G.players[0];
+        const anyPlayer = G.players.find(
+          (p) => Math.hypot(p.obj.position.x - H.walmart.position.x, p.obj.position.z - H.walmart.position.z) < 6
+        );
         H.walmart.userData.star.rotation.y += 2 * dt;
         H.walmart.userData.star.position.y = 7 + Math.sin(performance.now() / 400) * 0.4;
-        if (Math.hypot(p.obj.position.x - H.walmart.position.x, p.obj.position.z - H.walmart.position.z) < 6) robWalmart();
-        else if (H.walmart.position.z < p.obj.position.z - 80) removeWalmart();
+        if (anyPlayer) robWalmart();
+        else if (H.walmart.position.z < G.players[0].obj.position.z - 80) removeWalmart();
       }
       recycleHighway(G.players[0].obj.position.z);
       G_highwayGround.position.z = G.players[0].obj.position.z;
       G_mountains.position.z = G.players[0].obj.position.z;
+      skyDome.position.set(G.players[0].obj.position.x, 0, G.players[0].obj.position.z);
     }
     if (G.mode === "spleef") updateSpleef(dt);
 
     updateParticles(dt);
     updateSkids(dt);
-    updateHUD();
+    if (G.players.length) updateHUD();
     render();
   }
 }
