@@ -83,6 +83,8 @@ const tireMat = mat(0x26262e, { roughness: 0.95 });
 const rimMat = mat(0xfff4d6, { roughness: 0.35, metalness: 0.2 });
 const woodMat = mat(0xc98d5e);
 const steelMat = mat(0x9aa0ad, { metalness: 0.6, roughness: 0.35 });
+const kerbRedMat = mat(0xd64545, { roughness: 0.8 });
+const kerbWhiteMat = mat(0xf2f2f2, { roughness: 0.8 });
 const shortestAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = THREE.MathUtils.clamp;
 
@@ -906,7 +908,43 @@ function mulberry32(a) {
   };
 }
 let trackSeed = 20260916;
+function makeCheckerTexture(cols, rows) {
+  const c = document.createElement("canvas");
+  c.width = cols * 8;
+  c.height = rows * 8;
+  const ctx = c.getContext("2d");
+  for (let i = 0; i < cols; i++)
+    for (let j = 0; j < rows; j++) {
+      ctx.fillStyle = (i + j) % 2 ? "#1a1a1c" : "#f2f2f2";
+      ctx.fillRect(i * 8, j * 8, 8, 8);
+    }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function buildGrandstand(px, pz, rot) {
+  const g = new THREE.Group();
+  for (let t = 0; t < 5; t++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(11, 0.9, 1.7), t % 2 ? kerbWhiteMat : kerbRedMat);
+    step.position.set(0, 0.45 + t * 0.85, -t * 1.6);
+    step.castShadow = true;
+    g.add(step);
+  }
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(12, 0.3, 10), mat(0x4a90d9));
+  roof.position.set(0, 5.2, -3.4);
+  roof.castShadow = true;
+  g.add(roof);
+  for (const postX of [-5.4, 5.4]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 5.2, 8), steelMat);
+    post.position.set(postX, 2.6, -7.2);
+    g.add(post);
+  }
+  g.position.set(px, 0, pz);
+  g.rotation.y = rot;
+  scene.add(g);
+}
 function buildCircuit() {
+  C.checkpoints = [];
   const rnd = mulberry32(trackSeed);
   const pts = [];
   let x = 0, z = 0, h = 0;
@@ -948,31 +986,47 @@ function buildCircuit() {
   road.receiveShadow = true;
   scene.add(road);
 
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    right.set(Math.cos(p.h), 0, -Math.sin(p.h));
+    for (const side of [-1, 1]) {
+      const kerb = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.14, 5.6), i % 2 ? kerbWhiteMat : kerbRedMat);
+      kerb.position.set(p.x + right.x * side * (width / 2 + 0.4), 0.06, p.z + right.z * side * (width / 2 + 0.4));
+      kerb.rotation.y = p.h;
+      kerb.receiveShadow = true;
+      scene.add(kerb);
+    }
+  }
+
   for (let i = 0; i < pts.length; i += 6) {
     const p = pts[i];
-    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 3.5), mat(0xf8f9fa));
+    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 3.5), kerbWhiteMat);
     dash.rotation.x = -Math.PI / 2;
     dash.rotation.z = -p.h;
-    dash.position.set(p.x, 0.04, p.z);
+    dash.position.set(p.x, 0.045, p.z);
     scene.add(dash);
   }
 
-  const gate = (idx, color) => {
+  const checkTex = makeCheckerTexture(20, 3);
+  const gantry = (idx) => {
     const p = pts[Math.min(idx, pts.length - 1)];
     const rightV = new THREE.Vector3(Math.cos(p.h), 0, -Math.sin(p.h));
     for (const side of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 6, 0.5), mat(color));
-      post.position.set(p.x + rightV.x * side * (width / 2 + 0.5), 3, p.z + rightV.z * side * (width / 2 + 0.5));
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 7, 0.6), kerbRedMat);
+      post.position.set(p.x + rightV.x * side * (width / 2 + 1), 3.5, p.z + rightV.z * side * (width / 2 + 1));
       post.castShadow = true;
       scene.add(post);
     }
-    const banner = new THREE.Mesh(new THREE.BoxGeometry(width + 2, 1.2, 0.2), mat(color));
-    banner.position.set(p.x, 6, p.z);
+    const banner = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 3, 1.6, 0.25),
+      new THREE.MeshBasicMaterial({ map: checkTex })
+    );
+    banner.position.set(p.x, 7, p.z);
     banner.rotation.y = p.h;
     scene.add(banner);
   };
-  gate(0, 0x22c55e);
-  gate(pts.length - 1, 0xffd166);
+  gantry(0);
+  gantry(pts.length - 1);
 
   for (let i = C.cpSpacing; i < pts.length - 5; i += C.cpSpacing) {
     C.checkpoints.push(i);
@@ -980,8 +1034,38 @@ function buildCircuit() {
     const line = new THREE.Mesh(new THREE.PlaneGeometry(0.6, width), mat(0x7ec8f7));
     line.rotation.x = -Math.PI / 2;
     line.rotation.z = -p.h;
-    line.position.set(p.x, 0.045, p.z);
+    line.position.set(p.x, 0.05, p.z);
     scene.add(line);
+  }
+
+  const startP = pts[0];
+  const startRight = new THREE.Vector3(Math.cos(startP.h), 0, -Math.sin(startP.h));
+  buildGrandstand(startP.x + startRight.x * (width / 2 + 10), startP.z + startRight.z * (width / 2 + 10), startP.h);
+  buildGrandstand(startP.x - startRight.x * (width / 2 + 10), startP.z - startRight.z * (width / 2 + 10), startP.h + Math.PI);
+  const midP = pts[Math.floor(pts.length / 2)];
+  const midRight = new THREE.Vector3(Math.cos(midP.h), 0, -Math.sin(midP.h));
+  buildGrandstand(midP.x + midRight.x * (width / 2 + 10), midP.z + midRight.z * (width / 2 + 10), midP.h);
+
+  for (let i = 2; i < pts.length; i++) {
+    const turn = Math.abs(pts[i].h - pts[i - 1].h);
+    if (turn > 0.45 && Math.random() < 0.7) {
+      const p = pts[i];
+      right.set(Math.cos(p.h), 0, -Math.sin(p.h));
+      const side = pts[i].h > pts[i - 1].h ? 1 : -1;
+      for (let n = 0; n < 2; n++) {
+        for (let stack = 0; stack < 3; stack++) {
+          const tire = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.22, 8, 12), tireMat);
+          tire.rotation.x = -Math.PI / 2;
+          tire.position.set(
+            p.x + right.x * side * (width / 2 + 2.2 + n * 1.2),
+            0.24 + stack * 0.45,
+            p.z + right.z * side * (width / 2 + 2.2 + n * 1.2)
+          );
+          tire.castShadow = true;
+          scene.add(tire);
+        }
+      }
+    }
   }
 
   const bounds = pts.reduce((a, p) => ({
@@ -1001,7 +1085,7 @@ function buildCircuit() {
     const rightV = new THREE.Vector3(Math.cos(p.h), 0, -Math.sin(p.h));
     for (const side of [-1, 1]) {
       if (Math.random() < 0.5) continue;
-      const d = width / 2 + 4 + Math.random() * 14;
+      const d = width / 2 + 6 + Math.random() * 14;
       const s = 0.9 + Math.random() * 0.9;
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.3 * s, 7), woodMat);
       trunk.position.set(p.x + rightV.x * side * d, 0.65 * s, p.z + rightV.z * side * d);
@@ -1089,12 +1173,17 @@ $("btn-again").onclick = () => location.reload();
 $("btn-menu").onclick = () => location.reload();
 $("btn-exit").onclick = () => location.reload();
 
+let nextMode = "highway";
+
 $("mode-spleef").onclick = () => startSpleef();
 $("mode-highway").onclick = () => {
   $("menu").classList.add("hidden");
   $("highway-opts").classList.remove("hidden");
 };
-$("mode-circuit").onclick = () => { $("menu").classList.add("hidden"); $("circuit-opts").classList.remove("hidden"); };
+$("mode-circuit").onclick = () => {
+  $("menu").classList.add("hidden");
+  $("circuit-opts").classList.remove("hidden");
+};
 $("circuit-back").onclick = () => {
   $("circuit-opts").classList.add("hidden");
   $("menu").classList.remove("hidden");
@@ -1119,6 +1208,25 @@ $("hw-2p").onclick = () => {
   $("highway-opts").classList.add("hidden");
   $("select-screen").classList.remove("hidden");
 };
+$("circuit-solo").onclick = () => {
+  nextMode = "circuit-solo";
+  $("circuit-opts").classList.add("hidden");
+  $("select-screen").classList.remove("hidden");
+};
+$("circuit-2p").onclick = () => {
+  nextMode = "circuit-2p";
+  $("circuit-opts").classList.add("hidden");
+  $("select-screen").classList.remove("hidden");
+};
+
+function pickTrack(seed, btnId) {
+  trackSeed = seed;
+  for (const id of ["track-1", "track-2", "track-3"]) $(id).style.background = "";
+  $(btnId).style.background = "#7ec8f7";
+}
+$("track-1").onclick = () => pickTrack(20260916, "track-1");
+$("track-2").onclick = () => pickTrack(777, "track-2");
+$("track-3").onclick = () => pickTrack(424242, "track-3");
 
 const RATINGS = {
   sedan: { grip: 7 }, sports: { grip: 9 }, taxi: { grip: 7 }, van: { grip: 6 },
@@ -1128,7 +1236,6 @@ const RATINGS = {
 function statBar(label, cls, frac, valText) {
   return `<div class="stat-row"><span class="lbl">${label}</span><div class="stat-bar ${cls}"><div style="width:${Math.round(frac * 100)}%"></div></div><span class="val">${valText}</span></div>`;
 }
-let nextMode = "highway";
 for (const [name, v] of Object.entries(VEHICLES)) {
   const grip = RATINGS[name]?.grip ?? 6;
   const zeroToHundred = v.acc > 0 ? (v.max / 3.6 / v.acc).toFixed(1) : "-";
@@ -1152,10 +1259,6 @@ for (const [name, v] of Object.entries(VEHICLES)) {
   };
   $("vehicle-grid").appendChild(btn);
 }
-
-$("track-1").onclick = () => { trackSeed = 20260916; $("track-1").style.background = "#7ec8f7"; };
-$("track-2").onclick = () => { trackSeed = 777; $("track-2").style.background = "#7ec8f7"; };
-$("track-3").onclick = () => { trackSeed = 424242; $("track-3").style.background = "#7ec8f7"; };
 
 function showHUDs(n) {
   $("hud-p1").classList.remove("hidden");
@@ -1358,6 +1461,9 @@ function animate() {
       recycleHighway(G.players[0].obj.position.z);
       G_highwayGround.position.z = G.players[0].obj.position.z;
       G_mountains.position.z = G.players[0].obj.position.z;
+      skyDome.position.set(G.players[0].obj.position.x, 0, G.players[0].obj.position.z);
+    }
+    if (G.mode === "circuit") {
       skyDome.position.set(G.players[0].obj.position.x, 0, G.players[0].obj.position.z);
     }
     if (G.mode === "spleef") updateSpleef(dt);
